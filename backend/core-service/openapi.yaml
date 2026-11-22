@@ -11,13 +11,14 @@ info:
     - Kelompok lain (server ke server): header `X-API-Key`. Minta key ke kontak di README.
     - Peran `kurator` dibutuhkan untuk meninjau sumbangan video, moderasi catatan, dan mengelola API key.
 
-    **Batas pemanggilan:** 10 request/detik per IP (burst 20). Lebih dari itu dibalas `503`.
+    **Batas pemanggilan:** 10 request/detik per IP (burst 20). Lebih dari itu dibalas `429`.
 
     **Format error:** `{ "error": { "code": "VALIDATION_ERROR", "message": "...", "details": { "field": "..." } } }`
 
-    **Realtime nobar:** `wss://kelompokFarizRiko.stei.site/ws/rooms/{code}?token=<JWT>` (lihat README).
+    **Realtime nobar:** `wss://<alamat-server>/ws/rooms/{code}?token=<JWT>` (lihat README).
 servers:
-  - url: https://kelompokFarizRiko.stei.site/api
+  - url: /api
+    description: Alamat yang sedang dibuka (selalu cocok dengan domain atau IP yang dipakai)
   - url: http://localhost:8080/api
 tags:
   - name: Sistem
@@ -134,7 +135,7 @@ components:
         members:
           type: array
           items: { type: object, properties: { id: { type: integer }, name: { type: string }, online: { type: boolean } } }
-        wsUrl: { type: string, example: 'wss://kelompokFarizRiko.stei.site/ws/rooms/K7QX2M' }
+        wsUrl: { type: string, example: 'wss://<alamat-server>/ws/rooms/K7QX2M' }
 
 paths:
   /health:
