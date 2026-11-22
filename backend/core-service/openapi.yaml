@@ -1,0 +1,452 @@
+openapi: 3.0.3
+info:
+  title: NobarIlmu Core Service
+  version: 1.0.0
+  description: |
+    Microservice inti NobarIlmu (II3160 TST × II3140 PWAM, K02).
+    Kelas mini dari video YouTube pilihan, Catatan Detik, ruang nobar tersinkron, dan progres belajar.
+
+    **Autentikasi**
+    - Pengguna aplikasi: `Authorization: Bearer <token>` dari `POST /auth/login`.
+    - Kelompok lain (server ke server): header `X-API-Key`. Minta key ke kontak di README.
+    - Peran `kurator` dibutuhkan untuk meninjau sumbangan video, moderasi catatan, dan mengelola API key.
+
+    **Batas pemanggilan:** 10 request/detik per IP (burst 20). Lebih dari itu dibalas `503`.
+
+    **Format error:** `{ "error": { "code": "VALIDATION_ERROR", "message": "...", "details": { "field": "..." } } }`
+
+    **Realtime nobar:** `wss://nobarilmu.stei.site/ws/rooms/{code}?token=<JWT>` (lihat README).
+servers:
+  - url: https://nobarilmu.stei.site/api
+  - url: http://localhost:8080/api
+tags:
+  - name: Sistem
+  - name: Identitas & Akses
+  - name: Katalog
+  - name: Catatan Detik
+  - name: Belajar
+  - name: Nobar
+
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    ApiKey: { type: apiKey, in: header, name: X-API-Key }
+  parameters:
+    Id:
+      { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    RoomCode:
+      { name: code, in: path, required: true, schema: { type: string, pattern: '^[A-Z0-9]{6}$' }, example: K7QX2M }
+  responses:
+    Error400: { description: Input tidak valid, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Error401: { description: Belum login / API key salah, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Error403: { description: Tidak punya akses (peran/pemegang remote), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Error404: { description: Tidak ditemukan, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Error409: { description: Konflik data, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, example: VALIDATION_ERROR }
+            message: { type: string, example: Format email tidak valid }
+            details: { type: object, example: { field: email } }
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 2 }
+        name: { type: string, example: Riko (Uji) }
+        email: { type: string, example: riko@nobarilmu.test }
+        role: { type: string, enum: [user, kurator] }
+        interests: { type: array, items: { type: string }, example: [Budaya, Sains] }
+        needsOnboarding: { type: boolean, description: true bila belum memilih minat }
+    AuthResult:
+      type: object
+      properties:
+        token: { type: string }
+        user: { $ref: '#/components/schemas/User' }
+    ClassSummary:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        slug: { type: string, example: asal-usul-batik }
+        title: { type: string, example: Asal-usul Batik }
+        category: { type: string, example: Budaya }
+        tags: { type: array, items: { type: string } }
+        videoCount: { type: integer, example: 4 }
+        totalDurationSec: { type: integer, example: 1500 }
+        thumbnailUrl: { type: string, nullable: true }
+        score: { type: integer, description: Hanya di /classes/recommended }
+        reason: { type: string, description: Hanya di /classes/recommended, example: 'Sesuai minatmu: Budaya' }
+    Progress:
+      type: object
+      properties:
+        lastSecond: { type: integer }
+        completed: { type: boolean }
+        percent: { type: integer }
+    Video:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        youtubeId: { type: string, example: T7IlVves8D8 }
+        title: { type: string }
+        durationSec: { type: integer, example: 420 }
+        classId: { type: integer }
+        position: { type: integer }
+        status: { type: string, enum: [menunggu, disetujui, ditolak] }
+        thumbnailUrl: { type: string }
+        progress: { $ref: '#/components/schemas/Progress' }
+    ClassDetail:
+      allOf:
+        - $ref: '#/components/schemas/ClassSummary'
+        - type: object
+          properties:
+            description: { type: string }
+            wikiTitle: { type: string, example: Batik }
+            nextVideoId: { type: integer, description: Video yang diputar oleh tombol "Tonton sekarang" }
+            videos: { type: array, items: { $ref: '#/components/schemas/Video' } }
+    Note:
+      type: object
+      properties:
+        id: { type: integer }
+        videoId: { type: integer }
+        second: { type: integer, example: 95 }
+        text: { type: string, example: Bagian ini menjelaskan peran malam sebagai perintang warna. }
+        author: { type: object, properties: { id: { type: integer }, name: { type: string } } }
+        likes: { type: integer }
+        likedByMe: { type: boolean }
+        hidden: { type: boolean }
+        createdAt: { type: string }
+    Room:
+      type: object
+      properties:
+        code: { type: string, example: K7QX2M }
+        status: { type: string, enum: [aktif, selesai] }
+        visibility: { type: string, enum: [publik, privat] }
+        classId: { type: integer }
+        host: { type: object, properties: { id: { type: integer }, name: { type: string } } }
+        remoteHolder: { type: object, properties: { id: { type: integer }, name: { type: string } } }
+        video: { $ref: '#/components/schemas/Video' }
+        playback: { type: string, enum: [playing, paused] }
+        positionSec: { type: number, example: 132.5 }
+        serverTime: { type: integer, description: epoch ms }
+        members:
+          type: array
+          items: { type: object, properties: { id: { type: integer }, name: { type: string }, online: { type: boolean } } }
+        wsUrl: { type: string, example: 'wss://nobarilmu.stei.site/ws/rooms/K7QX2M' }
+
+paths:
+  /health:
+    get:
+      tags: [Sistem]
+      summary: Cek layanan hidup
+      responses: { '200': { description: OK } }
+
+  /interests:
+    get:
+      tags: [Identitas & Akses]
+      summary: Daftar minat yang bisa dipilih
+      responses: { '200': { description: OK } }
+  /auth/register:
+    post:
+      tags: [Identitas & Akses]
+      summary: Daftar akun baru
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 60 }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201': { description: Berhasil, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResult' } } } }
+        '400': { $ref: '#/components/responses/Error400' }
+        '409': { $ref: '#/components/responses/Error409' }
+  /auth/login:
+    post:
+      tags: [Identitas & Akses]
+      summary: Login, mendapat token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: riko@nobarilmu.test }
+                password: { type: string }
+      responses:
+        '200': { description: Berhasil, content: { application/json: { schema: { $ref: '#/components/schemas/AuthResult' } } } }
+        '400': { $ref: '#/components/responses/Error400' }
+        '401': { $ref: '#/components/responses/Error401' }
+  /users/me:
+    get:
+      tags: [Identitas & Akses]
+      summary: Profil pengguna yang login
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200': { description: OK }
+        '401': { $ref: '#/components/responses/Error401' }
+  /users/me/interests:
+    put:
+      tags: [Identitas & Akses]
+      summary: Simpan minat (minimal 1)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { interests: { type: array, items: { type: string }, example: [Budaya, Sains] } } }
+      responses:
+        '200': { description: OK }
+        '400': { $ref: '#/components/responses/Error400' }
+  /api-keys:
+    get:
+      tags: [Identitas & Akses]
+      summary: Daftar API key (kurator)
+      security: [{ BearerAuth: [] }]
+      responses: { '200': { description: OK }, '403': { $ref: '#/components/responses/Error403' } }
+    post:
+      tags: [Identitas & Akses]
+      summary: Buat API key untuk kelompok lain (kurator). Key hanya ditampilkan sekali.
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { group: { type: string, example: jalanaman } } } } }
+      responses: { '201': { description: Dibuat }, '403': { $ref: '#/components/responses/Error403' } }
+  /api-keys/{id}:
+    delete:
+      tags: [Identitas & Akses]
+      summary: Cabut API key (kurator)
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '204': { description: Dicabut }, '404': { $ref: '#/components/responses/Error404' } }
+
+  /classes:
+    get:
+      tags: [Katalog]
+      summary: Daftar / cari kelas mini
+      security: [{ BearerAuth: [] }, { ApiKey: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: Cari di judul, tag, deskripsi }
+        - { name: category, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/ClassSummary' } } } } } }
+        '401': { $ref: '#/components/responses/Error401' }
+  /classes/recommended:
+    get:
+      tags: [Katalog]
+      summary: Rekomendasi dari minat + riwayat tontonan
+      security: [{ BearerAuth: [] }]
+      responses: { '200': { description: OK } }
+  /classes/{idOrSlug}:
+    get:
+      tags: [Katalog]
+      summary: Detail kelas mini beserta daftar video (dan progres bila login)
+      security: [{ BearerAuth: [] }, { ApiKey: [] }]
+      parameters: [{ name: idOrSlug, in: path, required: true, schema: { type: string }, example: asal-usul-batik }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { data: { $ref: '#/components/schemas/ClassDetail' } } } } } }
+        '404': { $ref: '#/components/responses/Error404' }
+  /videos:
+    post:
+      tags: [Katalog]
+      summary: Sumbang video YouTube (status awal "menunggu")
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [youtubeUrl, classId, reason]
+              properties:
+                youtubeUrl: { type: string, example: 'https://youtu.be/T7IlVves8D8' }
+                classId: { type: integer, example: 1 }
+                reason: { type: string, minLength: 20 }
+                durationSec: { type: integer, description: Opsional bila server tidak bisa mengambil durasi }
+      responses:
+        '201': { description: Dikirim untuk ditinjau }
+        '400': { $ref: '#/components/responses/Error400' }
+        '409': { $ref: '#/components/responses/Error409' }
+  /videos/submissions/mine:
+    get:
+      tags: [Katalog]
+      summary: Video yang saya sumbang beserta statusnya
+      security: [{ BearerAuth: [] }]
+      responses: { '200': { description: OK } }
+  /videos/pending:
+    get:
+      tags: [Katalog]
+      summary: Antrean sumbangan (kurator)
+      security: [{ BearerAuth: [] }]
+      responses: { '200': { description: OK }, '403': { $ref: '#/components/responses/Error403' } }
+  /videos/{id}:
+    get:
+      tags: [Katalog]
+      summary: Detail satu video
+      security: [{ BearerAuth: [] }, { ApiKey: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error404' } }
+  /videos/{id}/review:
+    patch:
+      tags: [Katalog]
+      summary: Setujui / tolak sumbangan (kurator)
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [disetujui, ditolak] }
+                note: { type: string }
+                durationSec: { type: integer }
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Error403' }
+        '409': { $ref: '#/components/responses/Error409' }
+
+  /videos/{id}/notes:
+    get:
+      tags: [Catatan Detik]
+      summary: Catatan Detik sebuah video
+      security: [{ BearerAuth: [] }, { ApiKey: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: sort, in: query, schema: { type: string, enum: [time, top], default: time } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/Note' } } } } } } }
+    post:
+      tags: [Catatan Detik]
+      summary: Tulis catatan pada detik tertentu
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [second, text]
+              properties:
+                second: { type: integer, minimum: 0, example: 135, description: Harus ≤ durasi video }
+                text: { type: string, minLength: 3, maxLength: 200 }
+      responses:
+        '201': { description: Dibuat }
+        '400': { $ref: '#/components/responses/Error400' }
+  /notes/{id}/like:
+    post:
+      tags: [Catatan Detik]
+      summary: Suka / batal suka (toggle)
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: OK } }
+  /notes/{id}:
+    delete:
+      tags: [Catatan Detik]
+      summary: Hapus catatan (pemilik atau kurator)
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '204': { description: Dihapus }, '403': { $ref: '#/components/responses/Error403' } }
+  /notes/{id}/moderation:
+    patch:
+      tags: [Catatan Detik]
+      summary: Sembunyikan / tampilkan catatan (kurator)
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { hidden: { type: boolean } } } } }
+      responses: { '200': { description: OK }, '403': { $ref: '#/components/responses/Error403' } }
+
+  /progress/{videoId}:
+    put:
+      tags: [Belajar]
+      summary: Simpan posisi terakhir (selesai bila ≥ 90%)
+      security: [{ BearerAuth: [] }]
+      parameters: [{ name: videoId, in: path, required: true, schema: { type: integer } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { lastSecond: { type: integer, example: 400 } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { data: { $ref: '#/components/schemas/Progress' } } } } } }
+  /users/me/history:
+    get:
+      tags: [Belajar]
+      summary: Riwayat tonton terbaru
+      security: [{ BearerAuth: [] }]
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 20, maximum: 50 } }]
+      responses: { '200': { description: OK } }
+  /users/me/stats:
+    get:
+      tags: [Belajar]
+      summary: Angka ringkas profil (video selesai, catatan, nobar)
+      security: [{ BearerAuth: [] }]
+      responses: { '200': { description: OK } }
+
+  /rooms:
+    get:
+      tags: [Nobar]
+      summary: Ruang nobar publik yang aktif
+      security: [{ BearerAuth: [] }, { ApiKey: [] }]
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Nobar]
+      summary: Buat ruang nobar (pembuat = host & pemegang remote)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [videoId]
+              properties:
+                videoId: { type: integer, example: 1 }
+                classId: { type: integer }
+                visibility: { type: string, enum: [publik, privat], default: publik }
+      responses:
+        '201': { description: Dibuat, content: { application/json: { schema: { type: object, properties: { data: { $ref: '#/components/schemas/Room' } } } } } }
+  /rooms/{code}:
+    get:
+      tags: [Nobar]
+      summary: Status ruang
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RoomCode' }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error404' } }
+  /rooms/{code}/join:
+    post:
+      tags: [Nobar]
+      summary: Gabung ruang dengan kode
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RoomCode' }]
+      responses: { '200': { description: OK }, '404': { description: Ruang tidak ditemukan } }
+  /rooms/{code}/remote:
+    post:
+      tags: [Nobar]
+      summary: Oper remote ke anggota lain (pemegang remote / host)
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RoomCode' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { userId: { type: integer } } } } }
+      responses: { '200': { description: OK }, '403': { $ref: '#/components/responses/Error403' } }
+  /rooms/{code}/close:
+    post:
+      tags: [Nobar]
+      summary: Tutup ruang (host)
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/RoomCode' }]
+      responses: { '204': { description: Ditutup }, '403': { $ref: '#/components/responses/Error403' } }

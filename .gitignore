@@ -1,0 +1,23 @@
+# Rahasia
+.env
+.env.*
+!.env.example
+
+# Dependensi & build
+node_modules/
+dist/
+.expo/
+web-build/
+*.apk
+*.aab
+
+# Data & backup database
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+backups/
+
+# Sistem
+.DS_Store
+npm-debug.log*

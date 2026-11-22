@@ -1,0 +1,22 @@
+{
+  "name": "nobarilmu-core-service",
+  "version": "1.0.0",
+  "description": "Microservice inti NobarIlmu: kelas mini, Catatan Detik, ruang nobar, progres belajar",
+  "main": "src/server.js",
+  "private": true,
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "seed": "node --disable-warning=ExperimentalWarning src/db/seed.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "swagger-ui-express": "^5.0.1",
+    "ws": "^8.18.3",
+    "yaml": "^2.8.1"
+  }
+}
