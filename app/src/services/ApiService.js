@@ -1,4 +1,4 @@
-// Satu-satunya pintu ke microservice NobarIlmu (https://nobarilmu.stei.site/api).
+// Satu-satunya pintu ke microservice NobarIlmu (https://kelompokFarizRiko.stei.site/api).
 // - menambahkan header Authorization: Bearer <token> otomatis
 // - timeout, supaya aplikasi tidak menggantung kalau server mati
 // - semua kegagalan dijadikan ApiError dengan pesan yang siap ditampilkan (tidak crash)

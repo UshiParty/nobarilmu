@@ -15,9 +15,9 @@ info:
 
     **Format error:** `{ "error": { "code": "VALIDATION_ERROR", "message": "...", "details": { "field": "..." } } }`
 
-    **Realtime nobar:** `wss://nobarilmu.stei.site/ws/rooms/{code}?token=<JWT>` (lihat README).
+    **Realtime nobar:** `wss://kelompokFarizRiko.stei.site/ws/rooms/{code}?token=<JWT>` (lihat README).
 servers:
-  - url: https://nobarilmu.stei.site/api
+  - url: https://kelompokFarizRiko.stei.site/api
   - url: http://localhost:8080/api
 tags:
   - name: Sistem
@@ -134,7 +134,7 @@ components:
         members:
           type: array
           items: { type: object, properties: { id: { type: integer }, name: { type: string }, online: { type: boolean } } }
-        wsUrl: { type: string, example: 'wss://nobarilmu.stei.site/ws/rooms/K7QX2M' }
+        wsUrl: { type: string, example: 'wss://kelompokFarizRiko.stei.site/ws/rooms/K7QX2M' }
 
 paths:
   /health:

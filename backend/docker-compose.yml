@@ -1,6 +1,6 @@
 # NobarIlmu: microservice di STB kelompok (K02)
 # Jalankan:  docker compose up -d --build
-# Publik:    https://nobarilmu.stei.site/api  (lewat Cloudflare Tunnel, tanpa membuka port)
+# Publik:    https://kelompokFarizRiko.stei.site/api  (lewat Cloudflare Tunnel, tanpa membuka port)
 services:
   core-service:
     build: ./core-service
