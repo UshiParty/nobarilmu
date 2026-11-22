@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "NobarIlmu",
+    "slug": "nobarilmu",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "nobarilmu",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "id.nobarilmu.app"
+    },
+    "android": {
+      "package": "id.nobarilmu.app"
+    }
+  }
+}
